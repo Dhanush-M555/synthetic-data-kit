@@ -447,5 +447,122 @@ def server(
     run_server(host=host, port=port, debug=debug)
 
 
+@app.command()
+def generate(
+    taxonomy: Optional[str] = typer.Option(
+        None, "--taxonomy", help="Path to taxonomy file (.md or .txt) for taxonomy-based generation"
+    ),
+    seed_examples: Optional[str] = typer.Option(
+        None, "--seed-examples", help="Path to seed examples file (.json) for example-based generation"
+    ),
+    output_dir: Optional[Path] = typer.Option(
+        None, "--output-dir", "-o", help="Where to save the output"
+    ),
+    api_base: Optional[str] = typer.Option(
+        None, "--api-base", help="LLM API base URL"
+    ),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Model to use"
+    ),
+    num_examples: Optional[int] = typer.Option(
+        None, "--num-examples", "-n", help="Number of examples to generate"
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Show detailed output"
+    ),
+):
+    """
+    Generate synthetic datasets from scratch using taxonomies or seed examples.
+    
+    This command allows you to create datasets without needing source documents.
+    You can use either:
+    
+    1. Taxonomy-based generation: Provide a taxonomy structure in markdown/text format
+    2. Seed examples-based generation: Provide a few example data points in JSON format
+    
+    Examples:
+    
+    # Generate from taxonomy
+    synthetic-data-kit generate --taxonomy outline.md -n 50
+    
+    # Generate from seed examples  
+    synthetic-data-kit generate --seed-examples examples.json -n 100
+    """
+    from synthetic_data_kit.core.generate import process_generate_request
+    
+    # Validate that exactly one input type is provided
+    if not taxonomy and not seed_examples:
+        console.print("L Error: You must specify either --taxonomy or --seed-examples", style="red")
+        console.print("Use --help for more information", style="yellow")
+        return 1
+    
+    if taxonomy and seed_examples:
+        console.print("L Error: You cannot specify both --taxonomy and --seed-examples", style="red")
+        console.print("Use --help for more information", style="yellow")
+        return 1
+    
+    # Determine generation type and input file
+    if taxonomy:
+        generation_type = "taxonomy"
+        input_file = taxonomy
+    else:
+        generation_type = "seed-examples"
+        input_file = seed_examples
+    
+    # Check the LLM provider from config
+    provider = get_llm_provider(ctx.config)
+    console.print(f"L Using {provider} provider", style="green")
+    
+    if provider == "api-endpoint":
+        # Use API endpoint config
+        api_endpoint_config = get_openai_config(ctx.config)
+        api_base = api_base or api_endpoint_config.get("api_base")
+        model = model or api_endpoint_config.get("model")
+        # No server check needed for API endpoint
+    else:
+        # Use vLLM config
+        vllm_config = get_vllm_config(ctx.config)
+        api_base = api_base or vllm_config.get("api_base")
+        model = model or vllm_config.get("model")
+        
+        # Check vLLM server availability
+        try:
+            response = requests.get(f"{api_base}/models", timeout=2)
+            if response.status_code != 200:
+                console.print(f"L Error: VLLM server not available at {api_base}", style="red")
+                console.print("Please start the VLLM server with:", style="yellow")
+                console.print(f"vllm serve {model}", style="bold blue")
+                return 1
+        except requests.exceptions.RequestException:
+            console.print(f"L Error: VLLM server not available at {api_base}", style="red")
+            console.print("Please start the VLLM server with:", style="yellow")
+            console.print(f"vllm serve {model}", style="bold blue")
+            return 1
+    
+    # Get output directory from args, then config, then default
+    if output_dir is None:
+        output_dir = get_path_config(ctx.config, "output", "generated")
+    
+    try:
+        generation_desc = "taxonomy structure" if generation_type == "taxonomy" else "seed examples"
+        with console.status(f"Generating synthetic data from {generation_desc}..."):
+            output_path = process_generate_request(
+                input_file,
+                output_dir,
+                ctx.config_path,
+                api_base,
+                model,
+                generation_type,
+                num_examples,
+                verbose,
+                provider=provider
+            )
+        console.print(f" Synthetic data saved to [bold]{output_path}[/bold]", style="green")
+        return 0
+    except Exception as e:
+        console.print(f"L Error: {e}", style="red")
+        return 1
+
+
 if __name__ == "__main__":
     app()

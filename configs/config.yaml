@@ -173,3 +173,46 @@ prompts:
     
     Original conversations:
     {conversations}
+
+  # Taxonomy-based data generation prompt
+  taxonomy_generation: |
+    Generate {num_examples} diverse and realistic examples based on the following taxonomy structure.
+    Each example should follow the taxonomy guidelines and demonstrate natural variation.
+    
+    Taxonomy Structure:
+    {taxonomy}
+    
+    Rules:
+    1. Follow the taxonomy structure exactly
+    2. Generate diverse, realistic examples
+    3. Ensure examples are educational and appropriate
+    4. Return JSON format only:
+    
+    [
+      {{
+        "instruction": "Example instruction 1",
+        "input": "Example input 1 (if applicable)",
+        "output": "Example output 1"
+      }},
+      {{
+        "instruction": "Example instruction 2", 
+        "input": "Example input 2 (if applicable)",
+        "output": "Example output 2"
+      }}
+    ]
+
+  # Seed examples-based data generation prompt  
+  seed_examples_generation: |
+    Generate {num_examples} new examples similar to the provided seed examples.
+    Follow the same pattern, style, and structure while creating diverse variations.
+    
+    Seed Examples:
+    {seed_examples}
+    
+    Rules:
+    1. Follow the same format and structure as the seed examples
+    2. Create diverse variations while maintaining consistency
+    3. Ensure examples are realistic and high-quality
+    4. Return JSON format only - no explanations or markdown
+    
+    Return format should match the seed examples structure exactly.

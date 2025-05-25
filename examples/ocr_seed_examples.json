@@ -1,0 +1,29 @@
+{
+  "examples": [
+    {
+      "instruction": "Extract structured information from this noisy OCR text and return a JSON object with name, dob, and id_number fields.",
+      "input": "Nam: Priya\nDat of Brith: 13/04/2002\nID no: 1234-5678-9101",
+      "output": "{\"name\": \"Priya\", \"dob\": \"2002-04-13\", \"id_number\": \"1234-5678-9101\"}"
+    },
+    {
+      "instruction": "Convert this OCR text from an ID card into structured JSON format.",
+      "input": "Name: John D0e\nDate 0f Birth: 25-12-1990\nIdentity Number: ABC123456789",
+      "output": "{\"name\": \"John Doe\", \"dob\": \"1990-12-25\", \"id_number\": \"ABC123456789\"}"
+    },
+    {
+      "instruction": "Parse this messy OCR output and extract the required fields as JSON.",
+      "input": "FULL NAME: Sarah Chen\nB0RN: 08/03/1985\nID: XYZ-987-654-321",
+      "output": "{\"name\": \"Sarah Chen\", \"dob\": \"1985-03-08\", \"id_number\": \"XYZ-987-654-321\"}"
+    },
+    {
+      "instruction": "Extract person details from this OCR text and format as JSON.",
+      "input": "Narne: MikeWilson\nDOB: 15/07/1992\nCardNo: 555-444-333",
+      "output": "{\"name\": \"Mike Wilson\", \"dob\": \"1992-07-15\", \"id_number\": \"555-444-333\"}"
+    },
+    {
+      "instruction": "Convert this noisy OCR text to structured JSON with name, date of birth, and ID number.",
+      "input": "Name:Emma Rodriguez\nDate of Birth:02-11-1988\nID Number: DEF456789012",
+      "output": "{\"name\": \"Emma Rodriguez\", \"dob\": \"1988-11-02\", \"id_number\": \"DEF456789012\"}"
+    }
+  ]
+}

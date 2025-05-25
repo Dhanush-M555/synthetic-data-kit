@@ -5,3 +5,4 @@
 # the root directory of this source tree.
 # Generator logic for both QA 
 from synthetic_data_kit.generators.qa_generator import QAGenerator
+from synthetic_data_kit.generators.synthetic_data_generator import SyntheticDataGenerator
