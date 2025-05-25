@@ -6,6 +6,7 @@
 # CLI Logic for synthetic-data-kit
 
 import os
+import json
 import typer
 from pathlib import Path
 from typing import Optional
@@ -467,6 +468,9 @@ def generate(
     num_examples: Optional[int] = typer.Option(
         None, "--num-examples", "-n", help="Number of examples to generate"
     ),
+    examples_only: bool = typer.Option(
+        False, "--examples-only", help="Save only generated examples without seed examples or full metadata (seed-examples mode only)"
+    ),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed output"
     ),
@@ -487,6 +491,9 @@ def generate(
     
     # Generate from seed examples  
     synthetic-data-kit generate --seed-examples examples.json -n 100
+    
+    # Generate only the examples without seed data or metadata
+    synthetic-data-kit generate --seed-examples examples.json -n 50 --examples-only
     """
     from synthetic_data_kit.core.generate import process_generate_request
     
@@ -555,7 +562,8 @@ def generate(
                 generation_type,
                 num_examples,
                 verbose,
-                provider=provider
+                provider=provider,
+                examples_only=examples_only
             )
         console.print(f" Synthetic data saved to [bold]{output_path}[/bold]", style="green")
         return 0

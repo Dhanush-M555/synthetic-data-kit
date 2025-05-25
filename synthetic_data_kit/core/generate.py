@@ -24,6 +24,7 @@ def process_generate_request(
     num_examples: Optional[int] = None,
     verbose: bool = False,
     provider: Optional[str] = None,
+    examples_only: bool = False,  # New parameter to save only generated examples
 ) -> str:
     """
     Generate synthetic dataset from taxonomy or seed examples
@@ -38,6 +39,7 @@ def process_generate_request(
         num_examples: Number of examples to generate
         verbose: Enable verbose output
         provider: LLM provider to use
+        examples_only: If True, save only generated examples without seed examples or metadata (only applies to seed-examples)
         
     Returns:
         Path to the generated output file
@@ -82,8 +84,15 @@ def process_generate_request(
         result = generator.process_taxonomy_file(input_file, num_examples, verbose)
         output_suffix = "taxonomy_generated"
     else:  # seed-examples
-        result = generator.process_seed_examples_file(input_file, num_examples, verbose)
-        output_suffix = "seed_generated"
+        if examples_only:
+            # Get only the generated examples
+            examples = generator.get_generated_examples_only(input_file, num_examples, verbose)
+            result = examples  # Just the list of examples
+            output_suffix = "generated_only"
+        else:
+            # Get full result with seed examples and metadata
+            result = generator.process_seed_examples_file(input_file, num_examples, verbose, include_seed_examples=True)
+            output_suffix = "seed_generated"
     
     # Create output filename
     base_name = input_path.stem
@@ -92,10 +101,13 @@ def process_generate_request(
     
     # Save result
     with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(result, f, indent=2)
+        json.dump(result, f, indent=2, ensure_ascii=False)  # ensure_ascii=False to handle Unicode properly
     
     if verbose:
-        print(f"Generated {len(result['examples'])} examples")
+        if isinstance(result, list):
+            print(f"Generated {len(result)} examples (examples only)")
+        else:
+            print(f"Generated {len(result['examples'])} examples")
         print(f"Output saved to: {output_path}")
     
     return output_path

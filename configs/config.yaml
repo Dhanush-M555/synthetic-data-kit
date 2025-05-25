@@ -33,10 +33,10 @@ vllm:
   
 # API endpoint configuration
 api-endpoint:
-  api_base: "https://api.llama.com/v1" # Optional base URL for API endpoint (null for default API)
-  api_key: "llama-api-key"               # API key for API endpoint or compatible service (can use env var instead)
-  model: "Llama-4-Maverick-17B-128E-Instruct-FP8" # Default model to use
-  max_retries: 3                       # Number of retries for API calls
+  api_base: "https://api.groq.com/openai/v1"
+  api_key: "your groq api key here" # Your Groq API key
+  model: "meta-llama/llama-4-maverick-17b-128e-instruct"
+  max_retries: 3
   retry_delay: 1.0                     # Initial delay between retries (seconds)
 
 # Ingest configuration
@@ -205,14 +205,26 @@ prompts:
   seed_examples_generation: |
     Generate {num_examples} new examples similar to the provided seed examples.
     Follow the same pattern, style, and structure while creating diverse variations.
-    
+
     Seed Examples:
     {seed_examples}
-    
+
     Rules:
     1. Follow the same format and structure as the seed examples
-    2. Create diverse variations while maintaining consistency
-    3. Ensure examples are realistic and high-quality
-    4. Return JSON format only - no explanations or markdown
-    
+    2. The "OCR text" should resemble realistic, messy OCR output found on the back of food or product packaging. This includes:
+        - No newline characters
+        - Incorrect/missing punctuation, random capitalizations, inconsistent spacing
+        - Non-standard date formats (e.g., 04.06.23, 12-08-2022, etc.)
+        - Price notations like ₹, Rs, /-, .00, etc.
+        - Jumbled ingredient and instruction text, as OCR would extract
+    3. The "Structed Output" should cleanly and accurately extract standardized fields such as:
+        - ingredients (as a list)(if applicable)
+        - net_weight, mrp, batch_number, manufacturing_date, expiry_date or expiry_duration(if applicable)
+        - storage_instructions, allergens, fssai_license(if applicable)
+        - packed_date, best_before, etc.(if applicable)
+        All values must be standardized (e.g., dates as DD/MM/YYYY, weights in g/kg/ml, MRP as numeric only).
+    4. Create diverse variations while maintaining consistency
+    5. Ensure examples are realistic and high-quality
+    6. Return JSON format only - no explanations or markdown
+
     Return format should match the seed examples structure exactly.

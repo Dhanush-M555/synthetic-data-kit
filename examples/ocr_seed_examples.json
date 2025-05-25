@@ -1,29 +1,97 @@
 {
-  "examples": [
-    {
-      "instruction": "Extract structured information from this noisy OCR text and return a JSON object with name, dob, and id_number fields.",
-      "input": "Nam: Priya\nDat of Brith: 13/04/2002\nID no: 1234-5678-9101",
-      "output": "{\"name\": \"Priya\", \"dob\": \"2002-04-13\", \"id_number\": \"1234-5678-9101\"}"
-    },
-    {
-      "instruction": "Convert this OCR text from an ID card into structured JSON format.",
-      "input": "Name: John D0e\nDate 0f Birth: 25-12-1990\nIdentity Number: ABC123456789",
-      "output": "{\"name\": \"John Doe\", \"dob\": \"1990-12-25\", \"id_number\": \"ABC123456789\"}"
-    },
-    {
-      "instruction": "Parse this messy OCR output and extract the required fields as JSON.",
-      "input": "FULL NAME: Sarah Chen\nB0RN: 08/03/1985\nID: XYZ-987-654-321",
-      "output": "{\"name\": \"Sarah Chen\", \"dob\": \"1985-03-08\", \"id_number\": \"XYZ-987-654-321\"}"
-    },
-    {
-      "instruction": "Extract person details from this OCR text and format as JSON.",
-      "input": "Narne: MikeWilson\nDOB: 15/07/1992\nCardNo: 555-444-333",
-      "output": "{\"name\": \"Mike Wilson\", \"dob\": \"1992-07-15\", \"id_number\": \"555-444-333\"}"
-    },
-    {
-      "instruction": "Convert this noisy OCR text to structured JSON with name, date of birth, and ID number.",
-      "input": "Name:Emma Rodriguez\nDate of Birth:02-11-1988\nID Number: DEF456789012",
-      "output": "{\"name\": \"Emma Rodriguez\", \"dob\": \"1988-11-02\", \"id_number\": \"DEF456789012\"}"
-    }
-  ]
+    "examples":[
+        {
+            "OCR text": "MFD: 01-07-23 EXP 01.01.25 M.R.P Rs129/- Net wt : 200g",
+            "Structured Output": {
+            "manufacturing_date": "01/07/2023",
+            "expiry_date": "01/01/2025",
+            "mrp": "129",
+            "net_weight": "200g"
+            }
+        },
+        {
+            "OCR text": "B.No:XYZ12K3 Mfg Dt: 12/05/22 Best before 18mnths MRP Rs. 75/- wt 75 g",
+            "Structured Output": {
+            "batch_number": "XYZ12K3",
+            "manufacturing_date": "12/05/2022",
+            "expiry_duration": "18 months",
+            "mrp": "75",
+            "net_weight": "75g"
+            }
+        },
+        {
+            "OCR text": "NetWt 500 gm | Packd on 03-02-2024 | MRP ₹ 150/- | use by 02/26bas",
+            "Structured Output": {
+            "net_weight": "500g",
+            "packed_date": "03/02/2024",
+            "mrp": "150",
+            "expiry_date": "01/02/2026"
+            }
+        },
+        {
+            "OCR text": "mfg 1.3.2022 exp 28-02-2023 M.R.P Rs. 45/- NET WT 50g",
+            "Structured Output": {
+            "manufacturing_date": "01/03/2022",
+            "expiry_date": "28/02/2023",
+            "mrp": "45",
+            "net_weight": "50g"
+            }
+        },
+        {
+            "OCR text": "MRP Rs. 89 /-  Best Before 9 Month From Pkd Date: 09.11.2021 Net Wt 100grams",
+            "Structured Output": {
+            "mrp": "89",
+            "expiry_duration": "9 months",
+            "packed_date": "09/11/2021",
+            "net_weight": "100g"
+            }
+        },
+        {
+            "OCR text": "Batch: ALK19F MRP ₹65 Packed 02/01/23 Best use 6 mnth Net Weight:150 gms",
+            "Structured Output": {
+            "batch_number": "ALK19F",
+            "mrp": "65",
+            "packed_date": "02/01/2023",
+            "expiry_duration": "6 months",
+            "net_weight": "150g"
+            }
+        },
+        {
+            "OCR text": "PKD: 2023.12.15 MRP Rs 40/- wt. 200 g Best Before 12 mnth",
+            "Structured Output": {
+            "packed_date": "15/12/2023",
+            "mrp": "40",
+            "net_weight": "200g",
+            "expiry_duration": "12 months"
+            }
+        },
+        {
+            "OCR text": "Net Wt :250g MFD 05-03-21 EXP 04/03/23 Price: ₹120/-",
+            "Structured Output": {
+            "net_weight": "250g",
+            "manufacturing_date": "05/03/2021",
+            "expiry_date": "04/03/2023",
+            "mrp": "120"
+            }
+        },
+        {
+            "OCR text": "B. NO: ZX8G MRP 59rs/- Net weight 90 gm Pkd 1/9/2022 Use Before 1 year",
+            "Structured Output": {
+            "batch_number": "ZX8G",
+            "mrp": "59",
+            "net_weight": "90g",
+            "packed_date": "01/09/2022",
+            "expiry_duration": "12 months"
+            }
+        },
+        {
+            "OCR text": "MRP Rs 199/- Net Wt 1kg Pkd on 14/02/2022 BB 24 Months",
+            "Structured Output": {
+            "mrp": "199",
+            "net_weight": "1kg",
+            "packed_date": "14/02/2022",
+            "expiry_duration": "24 months"
+            }
+        }
+        ]
 }
