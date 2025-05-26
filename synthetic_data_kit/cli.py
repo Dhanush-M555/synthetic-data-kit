@@ -651,5 +651,10 @@ def curate_seed(
         return 1
 
 
+def main():
+    """Entry point for the synthetic-data-kit CLI."""
+    app()
+
+
 if __name__ == "__main__":
     app()
