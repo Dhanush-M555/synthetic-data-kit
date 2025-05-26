@@ -33,12 +33,14 @@ dependencies = [
     "rich>=10.0.0",
     "click>=8.0.0",
     "python-docx>=0.8.11",
-    "beautifulsoup4>=4.9.0",
+    "beautifulsoup4>=4.9.0", # bs4 is covered by this
     "python-pptx>=0.6.21",
     "PyPDF2>=3.0.0",
     "yt-dlp>=2023.1.6",
     "flask>=2.0.0",
     "werkzeug>=2.0.0",
+    "flask_wtf>=1.0.0",
+    "Pillow>=9.0.0", # Added Pillow for image processing
 ]
 
 [project.optional-dependencies]
