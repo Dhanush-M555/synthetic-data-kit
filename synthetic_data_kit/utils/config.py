@@ -120,6 +120,15 @@ def get_curate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         'temperature': 0.1
     })
 
+def get_seed_curate_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get seed curation configuration"""
+    return config.get('seed_curate', {
+        'threshold': 7.0,
+        'batch_size': 16,
+        'inference_batch': 16,
+        'temperature': 0.1
+    })
+
 def get_format_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """Get format configuration"""
     return config.get('format', {

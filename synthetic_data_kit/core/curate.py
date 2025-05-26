@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any, List
 
 from synthetic_data_kit.models.llm_client import LLMClient
 from synthetic_data_kit.generators.qa_generator import QAGenerator
-from synthetic_data_kit.utils.config import get_curate_config, get_prompt
+from synthetic_data_kit.utils.config import get_curate_config, get_seed_curate_config, get_prompt
 from synthetic_data_kit.utils.llm_processing import convert_to_conversation_format, parse_ratings
 
 def curate_qa_pairs(
@@ -105,7 +105,7 @@ def curate_qa_pairs(
     # Prepare all message batches for rating
     all_messages = []
     for batch in batches:
-        batch_json = json.dumps(batch, indent=2)
+        batch_json = json.dumps(batch, indent=2, ensure_ascii=False)
         rating_prompt = rating_prompt_template.format(pairs=batch_json)
         messages = [{"role": "system", "content": rating_prompt}]
         all_messages.append(messages)
@@ -204,7 +204,7 @@ def curate_qa_pairs(
                                 print("Attempting to process items individually...")
                             
                             for item in original_batch:
-                                item_json = json.dumps(item, indent=2)
+                                item_json = json.dumps(item, indent=2, ensure_ascii=False)
                                 rating_prompt = rating_prompt_template.format(pairs=item_json)
                                 item_response = client.chat_completion(
                                     [{"role": "system", "content": rating_prompt}],
@@ -288,3 +288,311 @@ def curate_qa_pairs(
         json.dump(result, f, indent=2)
     
     return output_path
+
+def curate_seed_examples(
+    input_path: str,
+    output_path: str,
+    threshold: Optional[float] = None,
+    api_base: Optional[str] = None,
+    model: Optional[str] = None,
+    config_path: Optional[Path] = None,
+    verbose: bool = False,
+    provider: Optional[str] = None,
+) -> str:
+    """Clean and filter seed-generated examples based on quality ratings
+    
+    Args:
+        input_path: Path to the input file with seed-generated examples
+        output_path: Path to save the cleaned output
+        threshold: Quality threshold (1-10)
+        api_base: VLLM API base URL
+        model: Model to use
+        config_path: Path to configuration file
+        verbose: Show detailed output
+        provider: LLM provider to use
+    
+    Returns:
+        Path to the cleaned output file
+    """
+    # Set verbose either via CLI or via env variable. If its via CLI, set it to env variable
+    if verbose:
+        os.environ['SDK_VERBOSE'] = 'true'
+    else:
+        os.environ['SDK_VERBOSE'] = 'false'
+    
+    # Load input file
+    with open(input_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    # Extract generated examples (should be a list of examples)
+    if isinstance(data, list):
+        examples = data
+        metadata = {}
+    elif isinstance(data, dict):
+        # Handle different possible structures
+        if "examples" in data:
+            examples = data["examples"]
+            metadata = {k: v for k, v in data.items() if k != "examples"}
+        elif "generated_examples" in data:
+            examples = data["generated_examples"]
+            metadata = {k: v for k, v in data.items() if k != "generated_examples"}
+        else:
+            # Assume the entire dict is a single example or list of examples
+            examples = [data] if not isinstance(data, list) else data
+            metadata = {}
+    else:
+        raise ValueError("Input file must contain a list of examples or a dict with examples")
+    
+    # If there are no examples
+    if not examples:
+        raise ValueError("No examples found in the input file")
+    
+    # Initialize LLM client
+    client = LLMClient(
+        config_path=config_path,
+        provider=provider,
+        api_base=api_base,
+        model_name=model
+    )
+    
+    # Get threshold from args, then config, then default
+    if threshold is None:
+        config = client.config
+        seed_curate_config = get_seed_curate_config(config)
+        threshold = seed_curate_config.get("threshold", 7.0)
+    
+    # Get configuration
+    curate_config = get_seed_curate_config(client.config)
+    
+    # Allow environment variable to override batch size (for debugging)
+    env_batch_size = os.environ.get('SDK_BATCH_SIZE')
+    if env_batch_size and env_batch_size.isdigit():
+        batch_size = int(env_batch_size)
+        inference_batch = int(env_batch_size)
+        if verbose:
+            print(f"Using environment-specified batch size: {batch_size}")
+    else:
+        batch_size = curate_config.get("batch_size", 16)
+        inference_batch = curate_config.get("inference_batch", 16)
+        
+    rating_temperature = curate_config.get("temperature", 0.1)
+    
+    if threshold is None:
+        threshold = curate_config.get("threshold", 7.0)
+    
+    # Get rating prompt template
+    rating_prompt_template = get_prompt(client.config, "seed_rating")
+    
+    # Split examples into batches
+    batches = []
+    for i in range(0, len(examples), batch_size):
+        batch = examples[i:i+batch_size]
+        batches.append(batch)
+    
+    # Prepare all message batches for rating
+    all_messages = []
+    for batch in batches:
+        batch_json = json.dumps(batch, indent=2, ensure_ascii=False)
+        rating_prompt = rating_prompt_template.format(examples=batch_json)
+        messages = [{"role": "system", "content": rating_prompt}]
+        all_messages.append(messages)
+    
+    # Initialize counters and result containers
+    filtered_examples = []
+    total_score = 0
+    total_evaluated = 0
+    total_passed = 0
+    
+    # Process batches with simple progress indicator
+    print(f"Processing {len(batches)} batches of seed examples...")
+    
+    # Only use detailed progress bar in verbose mode
+    if verbose:
+        from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
+        
+        progress_columns = [
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+        ]
+        
+        progress_ctx = Progress(*progress_columns)
+        rate_task = progress_ctx.add_task(f"Rating seed examples", total=len(batches))
+        progress_ctx.start()
+    else:
+        progress_ctx = None
+        rate_task = None
+    
+    # Process in inference batches
+    for batch_start in range(0, len(all_messages), inference_batch):
+        batch_end = min(batch_start + inference_batch, len(all_messages))
+        current_batch = all_messages[batch_start:batch_end]
+        current_batch_size = len(current_batch)
+        
+        batch_num = batch_start//inference_batch + 1
+        total_batches = (len(all_messages) + inference_batch - 1)//inference_batch
+        
+        # Simple progress indicator for non-verbose mode
+        if not verbose:
+            print(f"Processing batch {batch_num}/{total_batches}...", end="\r")
+        
+        try:
+            # Generate responses for current batch
+            responses = client.batch_completion(
+                current_batch,
+                temperature=rating_temperature
+            )
+            
+            # Process each response
+            for i, response in enumerate(responses):
+                original_batch_idx = batch_start + i
+                original_batch = batches[original_batch_idx]
+                
+                try:
+                    # Parse the ratings
+                    rated_examples = parse_seed_ratings(response, original_batch)
+                    
+                    # Add examples that meet threshold
+                    for rated_example in rated_examples:
+                        if "rating" in rated_example:
+                            rating = rated_example["rating"]
+                            total_score += rating
+                            total_evaluated += 1
+                            
+                            if rating >= threshold:
+                                # Save only the example, not the rating metadata
+                                filtered_examples.append(rated_example.get("example", rated_example))
+                                total_passed += 1
+                        else:
+                            # If no rating found, skip
+                            if verbose:
+                                print(f"Warning: No rating found for example")
+                            
+                except Exception as e:
+                    if verbose:
+                        print(f"Error processing batch response: {str(e)}")
+                    
+                    # Try processing one example at a time as a fallback
+                    try:
+                        if verbose:
+                            print("Attempting to process examples individually...")
+                        
+                        for item in original_batch:
+                            item_json = json.dumps(item, indent=2, ensure_ascii=False)
+                            rating_prompt = rating_prompt_template.format(examples=item_json)
+                            item_response = client.chat_completion(
+                                [{"role": "system", "content": rating_prompt}],
+                                temperature=rating_temperature
+                            )
+                            try:
+                                # This should be a single item
+                                rated_item = parse_seed_ratings(item_response, [item])
+                                if rated_item and len(rated_item) > 0:
+                                    example = rated_item[0]
+                                    if "rating" in example:
+                                        rating = example["rating"]
+                                        total_score += rating
+                                        total_evaluated += 1
+                                        
+                                        if rating >= threshold:
+                                            filtered_examples.append(example.get("example", example))
+                                            total_passed += 1
+                                            if verbose:
+                                                print(f"Successfully processed individual example with rating {rating}")
+                            except Exception as inner_e:
+                                if verbose:
+                                    print(f"Failed to process individual example: {str(inner_e)}")
+                    except Exception as fallback_e:
+                        if verbose:
+                            print(f"Fallback processing failed: {str(fallback_e)}")
+                        
+                        # Continue processing other batches rather than failing completely
+                        pass
+        
+            # Update progress bar if in verbose mode
+            if progress_ctx and rate_task:
+                progress_ctx.update(rate_task, advance=current_batch_size)
+            
+        except Exception as e:
+            if verbose:
+                print(f"Error processing inference batch {batch_num}: {str(e)}")
+            
+            # Update progress bar if in verbose mode
+            if progress_ctx and rate_task:
+                progress_ctx.update(rate_task, advance=current_batch_size)
+    
+    # Stop progress bar if in verbose mode
+    if progress_ctx:
+        progress_ctx.stop()
+    
+    # Clear the progress line in non-verbose mode
+    if not verbose:
+        print(" " * 80, end="\r")
+        print("Batch processing complete.")
+    
+    # Calculate metrics
+    metrics = {
+        "total": len(examples),
+        "filtered": len(filtered_examples),
+        "retention_rate": round(len(filtered_examples) / len(examples), 2) if examples else 0,
+        "avg_score": round(total_score / total_evaluated, 1) if total_evaluated else 0
+    }
+    
+    # Always print basic stats, even in non-verbose mode
+    print(f"Rated {total_evaluated} seed examples")
+    print(f"Retained {total_passed} examples (threshold: {threshold})")
+    print(f"Average score: {metrics['avg_score']}")
+    
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
+    # Save only the filtered examples as JSON (no metadata, no seed examples)
+    # This creates a clean output with just the generated and curated examples
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(filtered_examples, f, indent=2, ensure_ascii=False)
+    
+    return output_path
+
+
+def parse_seed_ratings(response: str, original_examples: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Parse LLM response containing seed example ratings
+    
+    Args:
+        response: LLM response containing ratings
+        original_examples: Original examples that were rated
+        
+    Returns:
+        List of examples with ratings
+    """
+    try:
+        # Try to parse as JSON
+        parsed = json.loads(response.strip())
+        
+        # Handle both single object and array formats
+        if isinstance(parsed, dict):
+            parsed = [parsed]
+        elif not isinstance(parsed, list):
+            raise ValueError("Response must be a JSON object or array")
+        
+        return parsed
+        
+    except json.JSONDecodeError:
+        # Fallback: try to extract JSON from response
+        import re
+        json_pattern = r'\{.*?\}|\[.*?\]'
+        matches = re.findall(json_pattern, response, re.DOTALL)
+        
+        for match in matches:
+            try:
+                parsed = json.loads(match)
+                if isinstance(parsed, dict):
+                    return [parsed]
+                elif isinstance(parsed, list):
+                    return parsed
+            except json.JSONDecodeError:
+                continue
+        
+        # If all parsing fails, return empty list
+        return []

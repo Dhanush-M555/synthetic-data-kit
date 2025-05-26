@@ -33,9 +33,9 @@ vllm:
   
 # API endpoint configuration
 api-endpoint:
-  api_base: "https://api.llama.com/v1"                         # Optional base URL for API endpoint
-  api_key: "llama-api-key"                                     # API key for API endpoint service
-  model: "Llama-4-Maverick-17B-128E-Instruct-FP8"              # Default model to use
+  api_base: "https://api.groq.com/openai/v1"
+  api_key: "your api key" # Your Groq API key
+  model: "meta-llama/llama-4-maverick-17b-128e-instruct"
   max_retries: 3                       # Number of retries for API calls
   retry_delay: 1.0                     # Initial delay between retries (seconds)
 
@@ -59,6 +59,13 @@ curate:
   threshold: 7.0     # Default quality threshold (1-10)
   batch_size: 32     # Number of items per batch for rating
   inference_batch: 32 # Number of batches to process at once with VLLM
+  temperature: 0.1   # Temperature for rating (lower = more consistent)
+
+# Seed examples curation parameters
+seed_curate:
+  threshold: 7.0     # Default quality threshold (1-10) for seed generated content
+  batch_size: 16     # Number of items per batch for rating seed examples
+  inference_batch: 16 # Number of batches to process at once with VLLM
   temperature: 0.1   # Temperature for rating (lower = more consistent)
 
 # Format conversion parameters
@@ -173,3 +180,56 @@ prompts:
     
     Original conversations:
     {conversations}
+
+  # Seed examples-based data generation prompt  
+  seed_examples_generation: |
+    Generate {num_examples} new examples similar to the provided seed examples.
+    Follow the same pattern, style, and structure while creating diverse variations.
+
+    Seed Examples:
+    {seed_examples}
+
+    Rules:
+    1. Follow the same format and structure as the seed examples
+    2. The "OCR text" should resemble realistic, messy OCR output found on the back of food or product packaging. This includes:
+        - No newline characters
+        - Incorrect/missing punctuation, random capitalizations, inconsistent spacing
+        - Non-standard date formats (e.g., 04.06.23, 12-08-2022, etc.)
+        - Price notations like ₹, Rs, /-, .00, etc.
+        - Jumbled ingredient and instruction text, as OCR would extract
+    3. The "Structed Output" should cleanly and accurately extract standardized fields such as:
+        - ingredients (as a list)(if applicable)
+        - net_weight, mrp, batch_number, manufacturing_date, expiry_date or expiry_duration(if applicable)
+        - storage_instructions, allergens, fssai_license(if applicable)
+        - packed_date, best_before, etc.(if applicable)
+        All values must be standardized (e.g., dates as DD/MM/YYYY, weights in g/kg/ml, MRP as numeric only).
+    4. Create diverse variations while maintaining consistency
+    5. Ensure examples are realistic and high-quality
+    6. Return JSON format only - no explanations or markdown
+
+    Return format should match the seed examples structure exactly.
+
+  # Seed examples rating prompt
+  seed_rating: |
+    Rate each seed-generated example on a scale from 1-10, based on:
+    - Format Consistency (0-2): matches seed example structure and format
+    - Content Quality (0-3): realistic and well-formed content
+    - Data Accuracy (0-2): properly structured output fields
+    - Diversity (0-3): variation from seed examples while maintaining quality
+    
+    YOU MUST RETURN A VALID JSON OBJECT OR ARRAY WITH THIS EXACT SCHEMA:
+    {{
+      "example": {{original example object}},
+      "rating": 8
+    }}
+    
+    OR FOR MULTIPLE EXAMPLES:
+    [
+      {{"example": {{example1}}, "rating": 8}},
+      {{"example": {{example2}}, "rating": 9}}
+    ]
+    
+    *** YOUR RESPONSE MUST BE VALID JSON AND NOTHING ELSE - NO EXPLANATION, NO MARKDOWN ***
+    
+    Examples to rate:
+    {examples}

@@ -572,5 +572,84 @@ def generate(
         return 1
 
 
+@app.command("curate-seed")
+def curate_seed(
+    input: str = typer.Argument(..., help="Input file with seed-generated examples to clean"),
+    output: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Output file path"
+    ),
+    threshold: Optional[float] = typer.Option(
+        None, "--threshold", "-t", help="Quality threshold (1-10)"
+    ),
+    api_base: Optional[str] = typer.Option(
+        None, "--api-base", help="VLLM API base URL"
+    ),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Model to use"
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Show detailed output"
+    ),
+):
+    """
+    Clean and filter seed-generated examples based on quality.
+    """
+    from synthetic_data_kit.core.curate import curate_seed_examples
+    
+    # Check the LLM provider from config
+    provider = get_llm_provider(ctx.config)
+    
+    if provider == "api-endpoint":
+        # Use API endpoint config
+        api_endpoint_config = get_openai_config(ctx.config)
+        api_base = api_base or api_endpoint_config.get("api_base")
+        model = model or api_endpoint_config.get("model")
+        # No server check needed for API endpoint
+    else:
+        # Use vLLM config
+        vllm_config = get_vllm_config(ctx.config)
+        api_base = api_base or vllm_config.get("api_base")
+        model = model or vllm_config.get("model")
+        
+        # Check vLLM server availability
+        try:
+            response = requests.get(f"{api_base}/models", timeout=2)
+            if response.status_code != 200:
+                console.print(f"L Error: VLLM server not available at {api_base}", style="red")
+                console.print("Please start the VLLM server with:", style="yellow")
+                console.print(f"vllm serve {model}", style="bold blue")
+                return 1
+        except requests.exceptions.RequestException:
+            console.print(f"L Error: VLLM server not available at {api_base}", style="red")
+            console.print("Please start the VLLM server with:", style="yellow")
+            console.print(f"vllm serve {model}", style="bold blue")
+            return 1
+    
+    # Get default output path from config if not provided
+    if not output:
+        cleaned_dir = get_path_config(ctx.config, "output", "cleaned")
+        os.makedirs(cleaned_dir, exist_ok=True)
+        base_name = os.path.splitext(os.path.basename(input))[0]
+        output = os.path.join(cleaned_dir, f"{base_name}_cleaned.json")
+    
+    try:
+        with console.status(f"Cleaning seed examples from {input}..."):
+            result_path = curate_seed_examples(
+                input,
+                output,
+                threshold,
+                api_base,
+                model,
+                ctx.config_path,
+                verbose,
+                provider=provider  # Pass the provider parameter
+            )
+        console.print(f" Cleaned seed examples saved to [bold]{result_path}[/bold]", style="green")
+        return 0
+    except Exception as e:
+        console.print(f"L Error: {e}", style="red")
+        return 1
+
+
 if __name__ == "__main__":
     app()

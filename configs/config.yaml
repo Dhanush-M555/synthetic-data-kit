@@ -34,7 +34,7 @@ vllm:
 # API endpoint configuration
 api-endpoint:
   api_base: "https://api.groq.com/openai/v1"
-  api_key: "your groq api key here" # Your Groq API key
+  api_key: "your api key" # Your Groq API key
   model: "meta-llama/llama-4-maverick-17b-128e-instruct"
   max_retries: 3
   retry_delay: 1.0                     # Initial delay between retries (seconds)
@@ -59,6 +59,13 @@ curate:
   threshold: 7.0     # Default quality threshold (1-10)
   batch_size: 32     # Number of items per batch for rating
   inference_batch: 32 # Number of batches to process at once with VLLM
+  temperature: 0.1   # Temperature for rating (lower = more consistent)
+
+# Seed examples curation parameters
+seed_curate:
+  threshold: 7.0     # Default quality threshold (1-10) for seed generated content
+  batch_size: 16     # Number of items per batch for rating seed examples
+  inference_batch: 16 # Number of batches to process at once with VLLM
   temperature: 0.1   # Temperature for rating (lower = more consistent)
 
 # Format conversion parameters
@@ -228,3 +235,29 @@ prompts:
     6. Return JSON format only - no explanations or markdown
 
     Return format should match the seed examples structure exactly.
+
+  # Seed examples rating prompt
+  seed_rating: |
+    You are an expert data quality rater. Your task is to evaluate seed-generated examples based on the following criteria:
+    Rate each seed-generated example on a scale from 1-10, based on:
+    - Format Consistency (0-2): Matches the required format of {"ocr_text": ..., "structured_output": {...}}
+    - Content Realism (0-3): OCR text is noisy and believable like real-world package scans
+    - Structured Accuracy (0-2): Output fields are correctly normalized and extracted (e.g., standardized dates, units, consistent casing)
+    - Diversity & Coverage (0-3): Adds new fields or realistic variations not present in the seed while still making sense
+
+    YOU MUST RETURN A VALID JSON OBJECT OR ARRAY WITH THIS EXACT SCHEMA:
+    {{
+      "example": {{original example object}},
+      "rating": 8
+    }}
+
+    OR FOR MULTIPLE EXAMPLES:
+    [
+      {{"example": {{example1}}, "rating": 8}},
+      {{"example": {{example2}}, "rating": 9}}
+    ]
+
+    *** YOUR RESPONSE MUST BE VALID JSON AND NOTHING ELSE - NO EXPLANATION, NO MARKDOWN ***
+
+    Examples to rate:
+    {examples}
